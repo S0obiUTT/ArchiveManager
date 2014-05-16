@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#set -x
+
+#####################################
+#									#
+#	@Author : Thibault Soubiran		#
+#	@Date   : 12/05/2014			#
+#	@Synop  : Créer une archive  	#
+#									#
+#####################################
+
+function usage () {
+	echo "Usage : $0 <archive name> <directory>"
+	exit 1
+}
+
+if (( $# != 2 )); then
+	usage
+fi
+
+declare archName="$1"
+declare root="$2"
+
+
+if ! [[ -d "$root" ]]; then
+	echo "$0: $root: no directory found"
+	exit 2
+fi
+
+if [[ ${root: -1:1} == "/" ]]; then
+	root=${root:0:${#root}-1}
+fi
+
+echo "\n" > "$archName" # prepare header
+
+pathLoop="$root"
+i=0
+for f in $(find $pathLoop/* -maxdepth 0); do
+	if (( i == 0)); then
+		echo "directory $pathLoop" #>> "$archName"
+	fi
+
+	if [[ -d "$f" ]]; then
+		echo "$f perm 4096" #>> "$archName"
+
+	elif [[ -f "$f" ]]; then
+		echo "$f perm line line line" #>> "$archName"
+	fi
+done

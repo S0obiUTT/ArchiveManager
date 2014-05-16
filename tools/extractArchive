@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+#set -x
+
+#########################################
+#										#
+#	@Author : Thibault Soubiran			#
+#	@Date   : 12/05/2014				#
+#	@Synop  : Extraire une archive  	#
+#										#
+#########################################
+
+function usage {
+	echo "Usage : $0 <archive name>"
+	exit 1
+}
+
+function cleanup {
+	if [[ -f "$header" ]]; then
+		rm "$header"
+
+	elif [[ -f "$body" ]]; then
+		rm "$body"
+	fi
+}
+
+trap "cleanup" SIGINT SIGQUIT EXIT
+
+function setPermission {
+	local file="$1"
+	local perm="$2"
+
+	if (( ${#perm} == 9 )); then
+		usrPerm=${perm:0:3}
+		grpPerm=${perm:3:3}
+		othPerm=${perm:6:3}
+
+		chmod u="${usrPerm//-/}",g="${grpPerm//-/}",o="${othPerm//-/}" "$file"
+
+	else
+		echo "Error : failed to read permission"
+
+	fi
+}
+
+if (( $# != 1 )); then
+	usage
+	exit 1
+fi
+
+if ! [[ -f $1 ]]; then
+	echo "$0: $1: Aucun fichier présent"
+	exit 2
+fi
+
+read headInfo < "$1" # get the 1st line
+headInfoArray=(${headInfo//:/ }) # split(":")
+headBegin=${headInfoArray[0]}
+headSize="${headInfoArray[1]}"
+headEnd=$(( headSize - headBegin))
+
+header="$(mktemp)" # get only header
+tail -n +$headBegin "$1"|head -n $headEnd > "$header"
+
+body="$(mktemp)" # get only body
+tail -n +$headSize "$1" > "$body"
+
+while read line; do
+	declare root
+	arrLine=(${line// / }) # split (" ")
+
+	# if line begins with "directory" and has 2 elements
+	if (( ${#arrLine[@]} == 2 )) && [[ ${arrLine[0]} == "directory" ]]; then
+		# if last caracter is "/"
+		if [[ ${arrLine[1]: -1:1} == "/" ]]; then
+			root="${arrLine[1]}"
+		else
+			root="${arrLine[1]}""/"
+		fi
+
+		mkdir -p "$root"
+		echo "[DIRECTORY] : $root"
+
+	# if line is a new subdirectory
+	elif (( ${#arrLine[@]} >= 2 )) && [[ ${arrLine[1]:0:1} == "d" ]]; then
+		pathFolder="$root${arrLine[0]}"
+		mkdir -p "$pathFolder"
+		echo "[SUBDIRECTORY] : $pathFolder"
+		
+		setPermission "$pathFolder" "${arrLine[1]:1}"
+
+	# if line is a new regular file
+	elif (( ${#arrLine[@]} >= 3 )) && [[ ${arrLine[1]:0:1} == "-" ]]; then
+		pathFile="$root${arrLine[0]}"
+		tail -n +${arrLine[3]} "$body"|head -n ${arrLine[4]} > "$pathFile"
+		echo "[FILE] : pathFile"
+
+		setPermission "$pathFile" "${arrLine[1]:1}"
+
+	# if line is end of category : nothing to do
+	elif (( ${#arrLine[@]} == 1 )) && [[ ${arrLine[0]} == "@" ]]; then
+		echo "end category"
+
+	# if line is not readable
+	else
+		echo "Failed to read line : $line"
+
+	fi
+
+done < "$header"
