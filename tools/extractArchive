@@ -11,7 +11,6 @@
 
 function usage {
 	echo "Usage : $0 <archive name>"
-	exit 1
 }
 
 function cleanup {
@@ -25,6 +24,9 @@ function cleanup {
 
 trap "cleanup" SIGINT SIGQUIT EXIT
 
+# Set permission for a file in a certain format
+# $1 - file
+# $2 - permission (format : rwxrwxrwx)
 function setPermission {
 	local file="$1"
 	local perm="$2"
@@ -48,13 +50,13 @@ if (( $# != 1 )); then
 fi
 
 if ! [[ -f $1 ]]; then
-	echo "$0: $1: Aucun fichier présent"
+	echo "$0: $1: no file found"
 	exit 2
 fi
 
 read headInfo < "$1" # get the 1st line
 headInfoArray=(${headInfo//:/ }) # split(":")
-headBegin=${headInfoArray[0]}
+headBegin="${headInfoArray[0]}"
 headSize="${headInfoArray[1]}"
 headEnd=$(( headSize - headBegin))
 
