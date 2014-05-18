@@ -10,92 +10,143 @@
 #########################################
 
 function usage {
-	echo -e "Usage : $0 [OPTION] [ARCHIVE]\n"
+	echo -e "Usage : $0 [OPTION] [SERVER] [PORT] [ARCHIVE]\n"
 	echo -e "\t -list    : list archive on the server"
 	echo -e "\t -browse  : browse archive on the server"
 	echo -e "\t -extract : extract the archive\n"
-	exit 1
 }
 
 function list {
-	# connect to the server
-	# send list command
+	nc "$server" "$port" <<< list
 	
-	respArray=(${resp//,/ }) # split(",")
-	for a in "${respArray[@]}"; do
-		echo "$a"
-	done
 }
 
 function browse {
 	# connect to the server
 	# send browse command
+
+	local prompt="vsh> "
+	local path="/"
 	
-	read -p "vsh> " cmd
-	local path
+	read -p "$prompt" cmd
+	cmd=(${cmd// / }) # split(" ")
 
 	# loop until command quit
-	while [[ $cmd != "quit" ]]; do
-		case "$cmd" in
+	while [[ ${cmd[0]} != "quit" ]]; do
+		case ${cmd[0]} in
 			"cd" )
+
+				# if there is only one argument
+				if (( ${#cmd[@]} == 2 )); then
+					resp="$(nc "$server" "$port" <<< ${cmd[0]} ${cmd[1]})"
+
+					# if the file is not in the archive
+					if [[ $resp == "NOTFOUND" ]]; then
+						echo "$path : not found"
+
+					# if the path is absolute
+					elif [[ ${cmd[1]:0:1} == "/" ]]; then
+						path="${cmd[1]}"
+
+					# if the path is relative
+					else
+						path="$path${cmd[1]}"
+
+					fi
+
+				# if there is many arguments
+				elif (( ${#cmd[@]} > 2 )); then
+					# TODO : manage argument with specials caracters
+					true;
+
+				else
+					echo "An unexpected error occurred"
+
+				fi
 				;;
 
 			"pwd" )
+				echo "$path"
 				;;
 
 			"ls" )
+				local resp;
+
+				# if there are no arguments
+				if (( ${#cmd[@]} == 1 )); then
+					resp="$(nc "$server" "$port" <<< ${cmd[0]} $path)"
+
+				# if there is an argument
+				elif (( ${#cmd[@]} == 2 )); then
+					resp="$(nc "$server" "$port" <<< ${cmd[0]} ${cmd[1]})"
+				else
+					# TODO : manage argument with specials caracters
+					true;
+
+				fi
+
+				echo -e "$resp""\n"
 				;;
 
 			"cat" )
+				# TODO : cat
 				;;
 
 			"rm" )
+				# TODO : rm
+				;;
+			* )
+				echo "command not found : ${cmd[0]}"
 				;;
 		esac
-		# display shell
-		read -p "vsh> " cmd
-	done
 
-		# send command to serv
-		# display response
-	true;
+		# display shell
+		read -p "$prompt" cmd
+		cmd=(${cmd// / }) # split(" ")
+
+	done
 }
 
 function extract {
-	# connect to the server
-	# send extract command
-	# get the file
-	# extract
-	true;
+	resp="$(nc "$server" "$port" <<< "extract" "$archiveName")"
+
+	if [[ $resp == "NOTFOUND" ]]; then
+		echo "$archiveName : not found"
+
+	else
+		arch=$(mktemps)
+		echo "$resp" > "$arch"
+		./tools/extractArchive "$arch" "$(pwd)"
+
+	fi
 }
 
 if ! (( $# == 3 || $# == 4 )); then
 	usage
+	exit 1
 fi
 
-declare server="$2"
-declare port="$3"
+server="$2"
+port="$3"
+archiveName="$4"
 
-#TODO : check if the port is in the range 0-65
-if ! [[ $port =~ ^[0-9]+$ ]]; then
+if ! [[ $port =~ ^[0-9]+$ ]] && (( port >= 0 && port <= 65535)); then
 	echo "$0: $port: is not a valid number"
 	exit 2
 fi
 
-
-case $1 in
+case "$1" in
 	-list|-l )
-		list;
+		list
 		;;
 	-browse|-b )
-		declare archiveName="$4"
-		browse;
+		browse
 		;;
 	-extract|-x )
-		declare archiveName="$4"
-		extract;
+		extract
 		;;
 	*)
 		usage
+		exit 3
 		;;
 esac
