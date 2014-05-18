@@ -1,0 +1,56 @@
+#!/bin/bash
+
+#########################################
+#										#
+#	@Author : Kevin Personnic			#
+#	@Date   : 17/05/2014				#
+#	@Synop  : Controller vsh			#
+#										#
+#########################################
+
+function vsh_ls {
+	#list a directory of an archive
+	true;
+}
+
+function vsh_cd {
+	#move to a directory
+	true;
+}
+
+function vsh_list {
+	cd archives
+	for file in *
+	do
+		echo "$file"
+	done
+}
+
+function vsh_browse {
+	#parse the parameters for -browse option
+	true;
+}
+
+function vsh_extract {
+	#send back the specified archive
+	true;
+}
+
+read message
+declare cmdline=$message;
+declare nbparam=$(echo "$cmdline" | wc -w)
+declare action=$(echo "$cmdline" | cut -d' ' -f1)
+
+case $action in
+	list )
+		vsh_list;
+		;;
+	browse )
+		vsh_browse;
+		;;
+	extract )
+		vsh_extract;
+		;;
+	*)
+		;;
+esac
