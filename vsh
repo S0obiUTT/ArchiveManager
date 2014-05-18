@@ -76,6 +76,7 @@ fi
 declare server="$2"
 declare port="$3"
 
+#TODO : check if the port is in the range 0-65
 if ! [[ $port =~ ^[0-9]+$ ]]; then
 	echo "$0: $port: is not a valid number"
 	exit 2

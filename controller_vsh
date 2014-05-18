@@ -36,10 +36,12 @@ function vsh_extract {
 	true;
 }
 
-read message
-declare cmdline=$message;
-declare nbparam=$(echo "$cmdline" | wc -w)
-declare action=$(echo "$cmdline" | cut -d' ' -f1)
+read cmdline
+cmdlineArray=(${cmdline// /})
+action="${cmdlineArray[0]}"
+#declare cmdline=$message;
+#declare nbparam=$(echo "$cmdline" | wc -w)
+#declare action=$(echo "$cmdline" | cut -d' ' -f1)
 
 case $action in
 	list )
