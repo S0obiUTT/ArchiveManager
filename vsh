@@ -16,15 +16,14 @@ function usage {
 	echo -e "\t -extract : extract the archive\n"
 }
 
+# List all archives on the server
 function list {
 	nc "$server" "$port" <<< list
 	
 }
 
+# Open a shell to browse the archive
 function browse {
-	# connect to the server
-	# send browse command
-
 	local prompt="vsh> "
 	local path="/"
 	
@@ -107,6 +106,7 @@ function browse {
 	done
 }
 
+# Extract a specific archive
 function extract {
 	resp="$(nc "$server" "$port" <<< "extract" "$archiveName")"
 
