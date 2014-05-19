@@ -8,27 +8,76 @@
 #										#
 #########################################
 
+#communication const messages
+declare -r archNotFound="ARCHNOTFOUND"
+declare -r dirNotFound="DIRNOTFOUND"
+
+#keywords
+declare -r directoryKey="directory"
+
+#environment variables
+declare -r archivesDir="archives"
+
 function vsh_ls {
 	#list a directory of an archive
 	true;
 }
 
 function vsh_cd {
-	#move to a directory
-	true;
+	path="${cmdLineArray[4]}"
+
+	#clean path of begining / and finishing /
+	cleanPath="$(echo "$path" | sed -e 's/\(^\/\|\/$\)//g')"
+	echo "$cleanPath"
+
+	#check if the targeted directory exist in the archive
+	directory="$(cat "$archivesDir/$archive" | sed -e 's/\/$//g' | grep "^$directoryKey" | grep "$cleanPath\$")"
+	if [[ -n "$directory" ]]
+	then
+		echo "$path"
+	else
+		echo "$dirNotFound"
+	fi
 }
 
 function vsh_list {
-	cd archives
+	cd $archivesDir
 	for file in *
 	do
 		echo "$file"
 	done
 }
 
-function vsh_browse {
-	#parse the parameters for -browse option
+function vsh_cat {
 	true;
+}
+
+function vsh_rm {
+	true;
+}
+
+function vsh_browse {
+	cmd="${cmdLineArray[3]}"
+	echo "$cmd"
+	#verifier que l'archive existe
+	#sinon ARCHNOTFOUND
+
+	case $cmd in
+		ls )
+			vsh_ls;
+			;;
+		cd )
+			vsh_cd;
+			;;
+		cat )
+			vsh_cat;
+			;;
+		rm )
+			vsh_rm;
+			;;
+		*)
+			;;
+	esac
 }
 
 function vsh_extract {
@@ -36,12 +85,10 @@ function vsh_extract {
 	true;
 }
 
-read cmdline
-cmdlineArray=(${cmdline// /})
-action="${cmdlineArray[0]}"
-#declare cmdline=$message;
-#declare nbparam=$(echo "$cmdline" | wc -w)
-#declare action=$(echo "$cmdline" | cut -d' ' -f1)
+read cmdLine
+declare cmdLineArray=(${cmdLine// / })
+declare action="${cmdLineArray[0]}"
+declare archive="${cmdLineArray[1]}"
 
 case $action in
 	list )
