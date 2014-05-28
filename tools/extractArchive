@@ -10,7 +10,7 @@
 #########################################
 
 function usage {
-	echo "Usage : $0 <archive name>"
+	echo "Usage : $0 <archive name> <directory>"
 }
 
 function cleanup {
@@ -44,7 +44,7 @@ function setPermission {
 	fi
 }
 
-if (( $# != 1 )); then
+if (( $# != 1 && $# != 2 )); then
 	usage
 	exit 1
 fi
@@ -52,6 +52,22 @@ fi
 if ! [[ -f $1 ]]; then
 	echo "$0: $1: no file found"
 	exit 2
+fi
+
+declare directory
+
+if (( $# == 2 )); then
+	if ! [[ -d "$2" ]]; then
+		echo "$0: $2: not a valid directory"
+		exit 3
+
+	fi
+
+	if [[ ${2: -1:1} == "/" ]]; then
+		directory="$2"
+	else
+		directory="$2""/"
+	fi
 fi
 
 read headInfo < "$1" # get the 1st line
@@ -74,9 +90,9 @@ while read line; do
 	if (( ${#arrLine[@]} == 2 )) && [[ ${arrLine[0]} == "directory" ]]; then
 		# if last caracter is "/"
 		if [[ ${arrLine[1]: -1:1} == "/" ]]; then
-			root="${arrLine[1]}"
+			root="$directory${arrLine[1]}"
 		else
-			root="${arrLine[1]}""/"
+			root="$directory${arrLine[1]}""/"
 		fi
 
 		mkdir -p "$root"
@@ -94,7 +110,7 @@ while read line; do
 	elif (( ${#arrLine[@]} >= 3 )) && [[ ${arrLine[1]:0:1} == "-" ]]; then
 		pathFile="$root${arrLine[0]}"
 		tail -n +${arrLine[3]} "$body"|head -n ${arrLine[4]} > "$pathFile"
-		echo "[FILE] : pathFile"
+		echo "[FILE] : $pathFile"
 
 		setPermission "$pathFile" "${arrLine[1]:1}"
 
