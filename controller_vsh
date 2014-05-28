@@ -20,28 +20,34 @@ declare -r archivesDir="archives"
 
 function vsh_ls {
 	#list a directory of an archive
-	true;
+	echo "command ls"
 }
 
 function vsh_cd {
-	path="${cmdLineArray[4]}"
+	path="${cmdLineArray[3]}"
 
 	#clean path of begining / and finishing /
-	cleanPath="$(echo "$path" | sed -e 's/\(^\/\|\/$\)//g')"
-	echo "$cleanPath"
+	cleanPath="$(sed -e 's/\(^\/\|\/$\)//g' <<< $path)"
 
 	#check if the targeted directory exist in the archive
-	directory="$(cat "$archivesDir/$archive" | sed -e 's/\/$//g' | grep "^$directoryKey" | grep "$cleanPath\$")"
-	if [[ -n "$directory" ]]
-	then
-		echo "$path"
-	else
+	#directory="$(cat "$archivesDir/$archive" | sed -e 's/\/$//g' | grep "^$directoryKey" | grep "$cleanPath\$")"
+	
+	#if [[ -n "$directory" ]]
+	#then
+	#	echo "$path"
+	#else
+	#	echo "$dirNotFound"
+	#fi
+
+	# if directory is found in the archive
+	if (( $(grep -c "^directory\ $cleanPath$" "$archivePath") == 0 )); then
 		echo "$dirNotFound"
 	fi
 }
 
 function vsh_list {
-	cd $archivesDir
+	cd "$archivesDir"
+
 	for file in *
 	do
 		echo "$file"
@@ -57,12 +63,11 @@ function vsh_rm {
 }
 
 function vsh_browse {
-	cmd="${cmdLineArray[3]}"
-	echo "$cmd"
+	cmd="${cmdLineArray[2]}"
 	#verifier que l'archive existe
 	#sinon ARCHNOTFOUND
 
-	case $cmd in
+	case "$cmd" in
 		ls )
 			vsh_ls;
 			;;
@@ -83,14 +88,15 @@ function vsh_browse {
 function vsh_extract {
 	#send back the specified archive
 	true;
+
 }
 
 read cmdLine
-declare cmdLineArray=(${cmdLine// / })
+cmdLineArray=(${cmdLine// / })
 declare action="${cmdLineArray[0]}"
-declare archive="${cmdLineArray[1]}"
+archivePath="$archivesDir/${cmdLineArray[1]}"
 
-case $action in
+case "$action" in
 	list )
 		vsh_list;
 		;;
