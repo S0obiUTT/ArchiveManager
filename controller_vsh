@@ -12,6 +12,7 @@
 declare -r archNotFound="ARCHNOTFOUND"
 declare -r dirNotFound="DIRNOTFOUND"
 declare -r dirFound="DIRFOUND"
+declare -r fileNotFound="FILENOTFOUND"
 
 #keywords
 declare -r directoryKey="directory"
@@ -40,7 +41,7 @@ function vsh_existArch {
 
 	for file in $archivesDir/*
 	do
-		if [[ -n $(sed -e "s/^$archivesDir\///g" <<< $file | grep "^$1\$") ]]; then
+		if [[ -n $(sed -e "s/^$archivesDir\///g" <<< "$file" | grep "^$1\$") ]]; then
 			found="1"
 		fi
 	done
@@ -48,19 +49,29 @@ function vsh_existArch {
 	echo "$found"
 }
 
+#send back the content of a directory
+function getDirContent {
+	lineStart=$(( $(grep -n $1\$ "$archivePath" | cut -d: -f1) + 1 ))
+	nbLines=$(( $(tail -n +$lineStart "$archivePath" | grep -n -m 1 "@" | cut -d: -f1) - 1 ))
+
+	echo "$(tail -n +$lineStart "$archivePath" | head -"$nbLines" )"
+}
+
+function initHeaderInfo {
+	lineBodyStart="$(head -1 "$archivePath" | cut -d: -f2 )"
+}
+
 #list the file of a directory
 function vsh_ls {
 
-	path="$localRoot${cmdLineArray[3]}"
+	path="$localRoot$(sed -e "s/\(^\/\|\/$\)//g" <<< ${cmdLineArray[3]})"
 
 	if ! (( $(vsh_existDir $path) )); then
 		echo "$dirNotFound"
 		return
 	fi
 
-	lineStart=$(( $(grep -n "$path\$" "$archivePath" | cut -d: -f1) + 1 ))
-	nbLines=$(( $(tail -n +$lineStart "$archivePath" | grep -n -m 1 "@" | cut -d: -f1) - 1 ))
-	dirContent="$(tail -n +$lineStart "$archivePath" | head -"$nbLines" )"
+	dirContent="$(getDirContent $path)"
 
 	#à re-écrire plus proprement
 	echo "$(sed -e 's/\sd.*/\//g' <<< "$dirContent" | sed -e 's/\s...x..x..x.*\|\s...x..x.*\|\s...x.*/\*/g' | sed -e 's/\s.*//g' | awk 1 ORS=' ')"
@@ -69,7 +80,7 @@ function vsh_ls {
 
 #move to an other directory
 function vsh_cd {
-	path="$localRoot${cmdLineArray[3]}"
+	path="$localRoot$(sed -e "s/\(^\/\|\/$\)//g" <<< ${cmdLineArray[3]})"
 
 	if ! (( $(vsh_existDir $path) )); then
 		echo "$dirNotFound"
@@ -80,14 +91,52 @@ function vsh_cd {
 #list the available archives
 function vsh_list {
 
+	#list the files contained by the archives directory
 	for file in $archivesDir/*
 	do
+		#clean the line before send it
 		echo "$(sed -e "s/^$archivesDir\///g" <<< $file)"
 	done
 }
 
+#display the content of a given file
 function vsh_cat {
-	true;
+
+	#clean the given file path
+	path="$(sed -e "s/\(^\/\|\/$\)//g" <<< ${cmdLineArray[3]})"
+
+	#extract the filename for the path
+	pathArray=(${path//'/'/ })
+	fileName=${pathArray[$((( ${#pathArray[@]} - 1 )))]}
+
+	#extract and construct the directory path containing the file
+	fileDir="$localRoot$(sed -e "s/\/\?$fileName\$//" <<< "$path")"
+
+	#check if the directory exist
+	if ! (( $(vsh_existDir $fileDir) )); then
+		echo "$dirNotFound"
+		return
+	fi
+
+	#get the description of the directory containing the file
+	dirContent="$(getDirContent "$fileDir")"
+
+	#check if the file exist in the directory
+	if (( $(grep -c "$fileName\ " <<< "$dirContent") == 0 )); then
+		echo "$fileNotFound"
+		return
+	fi
+
+	#extract the line and the length of the content of the file is in the body
+	fileLineStart="$(grep "$fileName\ " <<< "$dirContent" | cut -d' ' -f4)"
+	fileNbLines="$(grep "$fileName\ " <<< "$dirContent" | cut -d' ' -f5)"
+
+	#init a variable
+	initHeaderInfo
+
+	#send back the file
+	echo "$(tail -n +$lineBodyStart "$archivePath" | tail -n +$fileLineStart | head -$fileNbLines)"
+
 }
 
 function vsh_rm {
@@ -103,7 +152,9 @@ function vsh_browse {
 		return
 	fi
 
-	localRoot="$(grep -m 1 "$directoryKey" "$archivePath" | sed -e "s/\($directoryKey\ \|\/$\)//g")"
+	#extract the value of the / in the context of the archive
+	localRoot="$(grep -m 1 "$directoryKey" "$archivePath" | sed -e "s/$directoryKey\ //g")"
+	#localRoot="$(grep -m 1 "$directoryKey" "$archivePath" | sed -e "s/\($directoryKey\ \|\/$\)//g")"
 
 	case "$cmd" in
 		ls )
@@ -139,6 +190,7 @@ cmdLineArray=(${cmdLine// / })
 
 declare action="${cmdLineArray[0]}"
 declare localRoot=""
+declare lineBodyStart=""
 declare archivePath="$archivesDir/${cmdLineArray[1]}"
 
 case "$action" in
