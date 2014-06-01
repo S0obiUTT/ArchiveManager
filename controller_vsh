@@ -57,6 +57,12 @@ function getDirContent {
 	echo "$(tail -n +$lineStart "$archivePath" | head -"$nbLines" )"
 }
 
+#send back a path in the archive context
+function getLocalPath {
+	echo "$localRoot$(sed -e "s/\(^\/\|\/$\)//g" <<< $1)"
+}
+
+#init some variables containing header informations
 function initHeaderInfo {
 	lineBodyStart="$(head -1 "$archivePath" | cut -d: -f2 )"
 }
@@ -64,7 +70,7 @@ function initHeaderInfo {
 #list the file of a directory
 function vsh_ls {
 
-	path="$localRoot$(sed -e "s/\(^\/\|\/$\)//g" <<< ${cmdLineArray[3]})"
+	path="$(getLocalPath "${cmdLineArray[3]}")"
 
 	if ! (( $(vsh_existDir $path) )); then
 		echo "$dirNotFound"
@@ -80,7 +86,7 @@ function vsh_ls {
 
 #move to an other directory
 function vsh_cd {
-	path="$localRoot$(sed -e "s/\(^\/\|\/$\)//g" <<< ${cmdLineArray[3]})"
+	path="$(getLocalPath "${cmdLineArray[3]}")"
 
 	if ! (( $(vsh_existDir $path) )); then
 		echo "$dirNotFound"
@@ -147,7 +153,7 @@ function vsh_browse {
 	cmd="${cmdLineArray[2]}"
 
 	#check if the archive exist
-	if ! (( $(vsh_existArch ${cmdLineArray[1]}) )); then
+	if ! (( $(vsh_existArch "${cmdLineArray[1]}") )); then
 		echo "$archNotFound"
 		return
 	fi
