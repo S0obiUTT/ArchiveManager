@@ -23,7 +23,8 @@ declare -r archivesDir="archives"
 #check if a given directory exist
 function vsh_existDir {
 	#clean path of begining / and finishing /
-	cleanPath="$(sed -e 's/\(^\/\|\/$\)//g' <<< $1)"
+	#cleanPath="$(sed -e "s/\(^\/\|\/$\)//g" <<< $1)"
+	cleanPath="$1"
 
 	# if directory is found in the archive
 	if (( $(grep -c "^directory\ $cleanPath$" "$archivePath") == 0 )); then
@@ -39,7 +40,7 @@ function vsh_existArch {
 
 	for file in $archivesDir/*
 	do
-		if [[ -n $(sed -e 's/^archives\///g' <<< $file | grep \^$1\$) ]]; then
+		if [[ -n $(sed -e "s/^$archivesDir\///g" <<< $file | grep "^$1\$") ]]; then
 			found="1"
 		fi
 	done
@@ -49,17 +50,30 @@ function vsh_existArch {
 
 #list the file of a directory
 function vsh_ls {
-	echo "command ls"
+
+	path="$localRoot${cmdLineArray[3]}"
+
+	if ! (( $(vsh_existDir $path) )); then
+		echo "$dirNotFound"
+		return
+	fi
+
+	lineStart=$(( $(grep -n "$path\$" "$archivePath" | cut -d: -f1) + 1 ))
+	nbLines=$(( $(tail -n +$lineStart "$archivePath" | grep -n -m 1 "@" | cut -d: -f1) - 1 ))
+	dirContent="$(tail -n +$lineStart "$archivePath" | head -"$nbLines" )"
+
+	#à re-écrire plus proprement
+	echo "$(sed -e 's/\sd.*/\//g' <<< "$dirContent" | sed -e 's/\s...x..x..x.*\|\s...x..x.*\|\s...x.*/\*/g' | sed -e 's/\s.*//g' | awk 1 ORS=' ')"
+
 }
 
 #move to an other directory
 function vsh_cd {
-	path="${cmdLineArray[3]}"
+	path="$localRoot${cmdLineArray[3]}"
 
-	if (( $(vsh_existDir $path) )); then
+	if ! (( $(vsh_existDir $path) )); then
 		echo "$dirNotFound"
-	else
-		echo "$dirFound"
+		return
 	fi
 }
 
@@ -68,7 +82,7 @@ function vsh_list {
 
 	for file in $archivesDir/*
 	do
-		echo "$(sed -e 's/^archives\///g' <<< $file)"
+		echo "$(sed -e "s/^$archivesDir\///g" <<< $file)"
 	done
 }
 
@@ -88,6 +102,8 @@ function vsh_browse {
 		echo "$archNotFound"
 		return
 	fi
+
+	localRoot="$(grep -m 1 "$directoryKey" "$archivePath" | sed -e "s/\($directoryKey\ \|\/$\)//g")"
 
 	case "$cmd" in
 		ls )
@@ -114,13 +130,16 @@ function vsh_extract {
 		return
 	fi
 
+	#return all the content of the archive to the client
 	cat $archivePath
 }
 
 read cmdLine
 cmdLineArray=(${cmdLine// / })
+
 declare action="${cmdLineArray[0]}"
-archivePath="$archivesDir/${cmdLineArray[1]}"
+declare localRoot=""
+declare archivePath="$archivesDir/${cmdLineArray[1]}"
 
 case "$action" in
 	list )
