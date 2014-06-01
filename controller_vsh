@@ -108,9 +108,13 @@ function vsh_browse {
 }
 
 function vsh_extract {
-	#send back the specified archive
-	true;
+	#check if the archive exist
+	if ! (( $(vsh_existArch ${cmdLineArray[1]}) )); then
+		echo "$archNotFound"
+		return
+	fi
 
+	cat $archivePath
 }
 
 read cmdLine
