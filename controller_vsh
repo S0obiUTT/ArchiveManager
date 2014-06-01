@@ -11,6 +11,7 @@
 #communication const messages
 declare -r archNotFound="ARCHNOTFOUND"
 declare -r dirNotFound="DIRNOTFOUND"
+declare -r dirFound="DIRFOUND"
 
 #keywords
 declare -r directoryKey="directory"
@@ -18,39 +19,56 @@ declare -r directoryKey="directory"
 #environment variables
 declare -r archivesDir="archives"
 
-function vsh_ls {
-	#list a directory of an archive
-	echo "command ls"
-}
 
-function vsh_cd {
-	path="${cmdLineArray[3]}"
-
+#check if a given directory exist
+function vsh_existDir {
 	#clean path of begining / and finishing /
-	cleanPath="$(sed -e 's/\(^\/\|\/$\)//g' <<< $path)"
-
-	#check if the targeted directory exist in the archive
-	#directory="$(cat "$archivesDir/$archive" | sed -e 's/\/$//g' | grep "^$directoryKey" | grep "$cleanPath\$")"
-	
-	#if [[ -n "$directory" ]]
-	#then
-	#	echo "$path"
-	#else
-	#	echo "$dirNotFound"
-	#fi
+	cleanPath="$(sed -e 's/\(^\/\|\/$\)//g' <<< $1)"
 
 	# if directory is found in the archive
 	if (( $(grep -c "^directory\ $cleanPath$" "$archivePath") == 0 )); then
-		echo "$dirNotFound"
+		echo "0"
+	else
+		echo "1"
 	fi
 }
 
-function vsh_list {
-	cd "$archivesDir"
+#check if a given archive exist
+function vsh_existArch {
+	found="0"
 
-	for file in *
+	for file in $archivesDir/*
 	do
-		echo "$file"
+		if [[ -n $(sed -e 's/^archives\///g' <<< $file | grep \^$1\$) ]]; then
+			found="1"
+		fi
+	done
+
+	echo "$found"
+}
+
+#list the file of a directory
+function vsh_ls {
+	echo "command ls"
+}
+
+#move to an other directory
+function vsh_cd {
+	path="${cmdLineArray[3]}"
+
+	if (( $(vsh_existDir $path) )); then
+		echo "$dirNotFound"
+	else
+		echo "$dirFound"
+	fi
+}
+
+#list the available archives
+function vsh_list {
+
+	for file in $archivesDir/*
+	do
+		echo "$(sed -e 's/^archives\///g' <<< $file)"
 	done
 }
 
@@ -64,8 +82,12 @@ function vsh_rm {
 
 function vsh_browse {
 	cmd="${cmdLineArray[2]}"
-	#verifier que l'archive existe
-	#sinon ARCHNOTFOUND
+
+	#check if the archive exist
+	if ! (( $(vsh_existArch ${cmdLineArray[1]}) )); then
+		echo "$archNotFound"
+		return
+	fi
 
 	case "$cmd" in
 		ls )
