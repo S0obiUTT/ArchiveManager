@@ -22,5 +22,5 @@ fi
 
 for((;;));
 do
-	nc -vlp $1 -e controller_vsh;
+	nc -lp $1 -e controller_vsh;
 done
