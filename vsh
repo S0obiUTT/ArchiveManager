@@ -29,6 +29,35 @@ function isPathAbsolute {
 
 }
 
+# Get full path of the argument
+# $1 - basic path
+# $2 - file/folder argument
+function getFullPathFile {
+	local path="$1"
+	local arg="$2"
+
+	# if the path is absolute
+	if [[ $arg == ".." ]]; then
+		echo "$(dirname $path)"
+
+	elif [[ $arg == "." ]]; then
+		echo "$path"
+
+	elif (( $(isPathAbsolute $arg) )); then
+		echo "$arg"
+
+	# if the path is relative
+	else
+		# if last caracter is "/"
+		if [[ ${path: -1:1} == "/" ]]; then
+			echo "$path$arg"
+		else
+			echo "$path/$arg"
+		fi
+
+	fi
+}
+
 # Send browse command to the server
 # $1 - command to send
 # $2 - argument of the command
@@ -39,49 +68,45 @@ function sendBrowseCmd {
 # List all archives on the server
 function list {
 	nc "$server" "$port" <<< list
-	
+
 }
 
 # Open a shell to browse the archive
 function browse {
-	declare -r dirNotFound="DIRNOTFOUND"
 
-	local prompt="vsh> "
+	# TODO : test if archive is present
+
+	declare -r dirNotFound="DIRNOTFOUND"
+	declare -r fileNotFound="FILENOTFOUND"
+
 	local path="/"
-	
+	local prompt="vsh:$path> "
+
 	read -p "$prompt" cmd
 	cmd=(${cmd// / }) # split(" ")
 
 	# loop until command quit
-	while [[ ${cmd[0]} != "quit" || ${cmd[0]} != "exit" ]]; do
+	while [[ ${cmd[0]} != "exit" ]]; do
 		case ${cmd[0]} in
 			"cd" )
-
 				# if there is only one argument
 				if (( ${#cmd[@]} == 2 )); then
-					resp="$(sendBrowseCmd ${cmd[0]} ${cmd[1]})"
+					pathToCd="$(getFullPathFile $path ${cmd[1]})"
+
+					resp="$(sendBrowseCmd ${cmd[0]} $pathToCd)"
 
 					# if the file is not in the archive
 					if [[ $resp == $dirNotFound ]]; then
 						echo "${cmd[1]} : not found"
 
-					# if the path is absolute
-					elif (( $(isPathAbsolute ${cmd[1]}) )); then
-						path="${cmd[1]}"
-
-					# if the path is relative
 					else
-						path="$path${cmd[1]}"
+						path="$pathToCd"
 
 					fi
 
 				# if there is many arguments
 				elif (( ${#cmd[@]} > 2 )); then
-					# TODO : manage argument with specials caracters
-					true;
-
-				else
-					echo "An unexpected error occurred"
+					echo "${cmd[0]}: too much argument"
 
 				fi
 				;;
@@ -91,44 +116,119 @@ function browse {
 				;;
 
 			"ls" )
-
 				# if there are no arguments
 				if (( ${#cmd[@]} == 1 )); then
-					resp="$(sendBrowseCmd ${cmd[0]} $path)"
+					resp="$(sendBrowseCmd ${cmd[0]} $path)\n"
+					echo -e "$resp"
+
+				# if there is only one argument
+				elif (( ${#cmd[@]} == 2 )); then
+					pathToList="$(getFullPathFile $path ${cmd[1]})"
+
+					resp="$(sendBrowseCmd ${cmd[0]} $pathToList)\n"
+					echo -e "$resp"
 
 				# if there is an argument
-				elif (( ${#cmd[@]} == 2 )); then
-					if (( $(isPathAbsolute ${cmd[1]}) )); then
-						pathToList="${cmd[1]}"
-					else
-						pathToList="$path${cmd[1]}"
-					fi
+				elif (( ${#cmd[@]} > 2 )); then
+					for elem in "${cmd[@]:1}"; do
+						echo -e "$elem:"
+						pathToList="$(getFullPathFile $path $elem)"
 
-					resp="$(sendBrowseCmd ${cmd[0]} $pathToList)"
-				else
-					# TODO : manage argument with specials caracters
-					true;
+						resp="$(sendBrowseCmd ${cmd[0]} $pathToList)"
+						echo -e "$resp\n"
+					done
 
 				fi
-
-				echo -e "$resp""\n"
 				;;
 
 			"cat" )
-				# TODO : cat
+				# if there is only one argument
+				if (( ${#cmd[@]} == 2 )); then
+					pathToCat="$(getFullPathFile $path ${cmd[1]})"
+
+					resp="$(sendBrowseCmd ${cmd[0]} $pathToCat)"
+
+					# if the file is not in the archive
+					if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+						echo "${cmd[1]} : not found"
+
+					else
+						echo "$resp"
+					fi
+
+				# if there are many arguments
+				elif (( ${#cmd[@]} > 2 )); then
+					for elem in "${cmd[@]:1}"; do
+						pathToCat="$(getFullPathFile $path $elem)"
+
+						resp="$(sendBrowseCmd ${cmd[0]} $pathToCat)"
+
+						# if the file is not in the archive
+						if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+							echo "${cmd[1]} : not found"
+
+						else
+							echo -e "$resp\n"
+						fi
+					done
+
+				# if there are no arguments
+				else
+					echo "${cmd[0]}: no argument"
+
+				fi
 				;;
 
 			"rm" )
-				# TODO : rm
+				if (( ${#cmd[@]} == 2 )); then
+					pathToRm="$(getFullPathFile $path ${cmd[1]})"
+
+					resp="$(sendBrowseCmd ${cmd[0]} $pathToRm)"
+
+					# if the file is not in the archive
+					if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+						echo "${cmd[1]} : not found"
+
+					else
+						echo "${cmd[1]} : successfully removed"
+					fi
+
+				# if there are many arguments
+				elif (( ${#cmd[@]} > 2 )); then
+					for elem in "${cmd[@]:1}"; do
+						pathToRm="$(getFullPathFile $path $elem)"
+
+						resp="$(sendBrowseCmd ${cmd[0]} $pathToRm)"
+
+						# if the file is not in the archive
+						if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+							echo "${cmd[1]} : not found"
+
+						else
+							echo "$elem : successfully removed"
+						fi
+					done;
+
+				else
+					echo "${cmd[0]}: no argument"
+
+				fi
 				;;
+
 			"" )
 				;;
+
+			"exit")
+				return;
+				;;
+
 			* )
 				echo "command not found : ${cmd[0]}"
 				;;
 		esac
 
 		# display shell
+		local prompt="vsh:$path> "
 		read -p "$prompt" cmd
 		cmd=(${cmd// / }) # split(" ")
 
@@ -143,9 +243,9 @@ function extract {
 		echo "$archiveName : archive not found"
 
 	else
-		#arch=$(mktemp)
-		echo "$resp" #> "$arch"
-		#./tools/extractArchive "$arch" "$(pwd)"
+		arch=$(mktemp)
+		echo "$resp" > "$arch"
+		./tools/extractArchive "$arch" "$(pwd)"
 
 	fi
 }
@@ -174,7 +274,7 @@ case "$1" in
 	-extract|-x )
 		extract
 		;;
-	*)
+	* )
 		usage
 		exit 3
 		;;
