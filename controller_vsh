@@ -72,6 +72,7 @@ function vsh_ls {
 
 	path="$(getLocalPath "${cmdLineArray[3]}")"
 
+
 	if ! (( $(vsh_existDir $path) )); then
 		echo "$dirNotFound"
 		return
@@ -192,10 +193,8 @@ function vsh_rm {
 
 	while read line
 	do
-		echo "$line"
 		#ge the old strating line of the file
 		lineStart="$(cut -d' ' -f4 <<< "$line")"
-		echo "$lineStart"
 		#check if it need to be updated
 		if (( $lineStart > $fileLineStart )); then
 			#get the new starting line for the reference
