@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -f # avoid bash intrepretation
 #set -x
 
 #########################################
@@ -35,14 +36,19 @@ function isPathAbsolute {
 function getFullPathFile {
 	local path="$1"
 	local arg="$2"
-
-	# if the path is absolute
-	if [[ $arg == ".." ]]; then
-		echo "$(dirname $path)"
+	
+	if [[ ${arg:0:2} == ".." ]]; then
+		if [[ $(dirname $path) != "/" ]]; then
+			echo "$(dirname $path)/${arg:3}"
+		
+		else
+			echo "/"
+		fi
 
 	elif [[ $arg == "." ]]; then
 		echo "$path"
 
+	# if the path is absolute
 	elif (( $(isPathAbsolute $arg) )); then
 		echo "$arg"
 
@@ -74,7 +80,11 @@ function list {
 # Open a shell to browse the archive
 function browse {
 
-	# TODO : test if archive is present
+	# send a dummy command to test if the archive is present
+	if [[ $(sendBrowseCmd cd /) == $archNotFound ]]; then
+		echo "$archiveName : archive not found"
+		return;
+	fi 
 
 	declare -r dirNotFound="DIRNOTFOUND"
 	declare -r fileNotFound="FILENOTFOUND"
@@ -125,8 +135,14 @@ function browse {
 				elif (( ${#cmd[@]} == 2 )); then
 					pathToList="$(getFullPathFile $path ${cmd[1]})"
 
-					resp="$(sendBrowseCmd ${cmd[0]} $pathToList)\n"
-					echo -e "$resp"
+					resp="$(sendBrowseCmd ${cmd[0]} $pathToList)"
+
+					if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+						echo "${cmd[1]} : not found"
+
+					else
+						echo -e "$resp\n"
+					fi
 
 				# if there is an argument
 				elif (( ${#cmd[@]} > 2 )); then
@@ -135,7 +151,13 @@ function browse {
 						pathToList="$(getFullPathFile $path $elem)"
 
 						resp="$(sendBrowseCmd ${cmd[0]} $pathToList)"
-						echo -e "$resp\n"
+
+						if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+							echo "${cmd[1]} : not found"
+
+						else
+							echo -e "$resp\n"
+						fi
 					done
 
 				fi
