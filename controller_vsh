@@ -198,21 +198,16 @@ function vsh_rmDir {
 	lsElem=$(sed -e "s/\ .\+\$//g" <<< "$dirContent")
 	for elem in $lsElem
 	do
-		echo "putede:$elem"
 		#ask rm for the element
 		vsh_rm "$1/$elem"
 
 	done
-
-	echo "jesuissorti"
 
 	#delete his own reference
 		#get the starting line of the description containing the dir
 	parentDir=$(sed -e "s/[^/]\+$//" <<< $1 | sed -e "s/\(^\/\|\/$\)//g")
 	parentDescLn=$(grep -n $(getLocalPath $parentDir)\$ "$archivePath" | cut -d: -f1)
 		#get the line of the ref in the desciption
-	echo "putepute:$1"
-	echo "putesalope:$(sed -e "s/.\+\///" <<< "$1")"
 	descLine=$(grep -n "$(sed -e "s/.\+\///" <<< "$1")" <<< "$(getDirContent $parentDir)" | cut -d: -f1)
 		#delete the line
 	sed -i "$(( $parentDescLn + $descLine ))d" "$archivePath"
