@@ -1,5 +1,5 @@
 #!/bin/bash
-#set -x
+set -x
 #########################################
 #										#
 #	@Author : Kevin Personnic			#
@@ -51,7 +51,8 @@ function vsh_existArch {
 
 #send back the content of a directory
 function getDirContent {
-	lineStart=$(( $(grep -n $1\$ "$archivePath" | cut -d: -f1) + 1 ))
+	path="$(getLocalPath "$1")"
+	lineStart=$(( $(grep -n $path\$ "$archivePath" | cut -d: -f1) + 1 ))
 	nbLines=$(( $(tail -n +$lineStart "$archivePath" | grep -n -m 1 "@" | cut -d: -f1) - 1 ))
 
 	echo "$(tail -n +$lineStart "$archivePath" | head -"$nbLines" )"
@@ -70,7 +71,7 @@ function initHeaderInfo {
 #list the file of a directory
 function vsh_ls {
 
-	path="$(getLocalPath "${cmdLineArray[3]}")"
+	path="$(getLocalPath "$1")"
 
 
 	if ! (( $(vsh_existDir $path) )); then
@@ -78,16 +79,15 @@ function vsh_ls {
 		return
 	fi
 
-	dirContent="$(getDirContent $path)"
+	dirContent="$(getDirContent $1)"
 
 	#à re-écrire plus proprement
 	echo "$(sed -e 's/\sd.*/\//g' <<< "$dirContent" | sed -e 's/\s...x..x..x.*\|\s...x..x.*\|\s...x.*/\*/g' | sed -e 's/\s.*//g' | awk 1 ORS=' ')"
-
 }
 
 #move to an other directory
 function vsh_cd {
-	path="$(getLocalPath "${cmdLineArray[3]}")"
+	path="$(getLocalPath "$1")"
 
 	if ! (( $(vsh_existDir $path) )); then
 		echo "$dirNotFound"
@@ -110,17 +110,17 @@ function vsh_list {
 function vsh_cat {
 
 	#clean the given file path
-	path="$(sed -e "s/\(^\/\|\/$\)//g" <<< ${cmdLineArray[3]})"
+	path="$(sed -e "s/\(^\/\|\/$\)//g" <<< $1)"
 
 	#extract the filename for the path
 	pathArray=(${path//'/'/ })
 	fileName=${pathArray[$((( ${#pathArray[@]} - 1 )))]}
 
 	#extract and construct the directory path containing the file
-	fileDir="$localRoot$(sed -e "s/\/\?$fileName\$//" <<< "$path")"
+	fileDir="$(sed -e "s/\/\?$fileName\$//" <<< "$path")"
 
 	#check if the directory exist
-	if ! (( $(vsh_existDir $fileDir) )); then
+	if ! (( $(vsh_existDir "$(getLocalPath $fileDir)") )); then
 		echo "$dirNotFound"
 		return
 	fi
@@ -146,32 +146,13 @@ function vsh_cat {
 
 }
 
-function vsh_rm {
+function vsh_rmFile {
 
-	#clean the given file path
-	path="$(sed -e "s/\(^\/\|\/$\)//g" <<< ${cmdLineArray[3]})"
-
-	#extract the filename for the path
-	pathArray=(${path//'/'/ })
-	fileName=${pathArray[$((( ${#pathArray[@]} - 1 )))]}
-
-	#extract and construct the directory path containing the file
-	fileDir="$localRoot$(sed -e "s/\/\?$fileName\$//" <<< "$path")"
-
-	#check if the directory exist
-	if ! (( $(vsh_existDir $fileDir) )); then
-		echo "$dirNotFound"
-		return
-	fi
+	fileName=$1
+	fileDir=$2
 
 	#get the description of the directory containing the file
 	dirContent="$(getDirContent "$fileDir")"
-
-	#check if the file exist in the directory
-	if (( $(grep -c "$fileName\ " <<< "$dirContent") == 0 )); then
-		echo "$fileNotFound"
-		return
-	fi
 
 	#extract the line and the length of the content of the file is in the body
 	fileLineStart="$(grep "$fileName\ " <<< "$dirContent" | cut -d' ' -f4)"
@@ -181,7 +162,7 @@ function vsh_rm {
 	initHeaderInfo
 
 	#delete file's content
-	sed -i "$(( $lineBodyStart + $fileLineStart - 1 )),$(( $lineBodyStart + $fileNbLines - 1 ))d" "$archivePath"
+	sed -i "$(( $lineBodyStart + $fileLineStart - 1 )),$(( $lineBodyStart + $fileLineStart + $fileNbLines - 1 ))d" "$archivePath"
 
 	#delete file's reference in the header
 	sed -i "/^.\+\ -[r,w,x,-]\+\ [0-9]\+\ $fileLineStart\ $fileNbLines/d" "$archivePath"
@@ -209,6 +190,81 @@ function vsh_rm {
 
 }
 
+function vsh_rmDir {
+
+	dirContent="$(getDirContent "$1")"
+
+	#for each element of the directory cleaned from useless informations
+	lsElem=$(sed -e "s/\ .\+\$//g" <<< "$dirContent")
+	for elem in $lsElem
+	do
+		echo "putede:$elem"
+		#ask rm for the element
+		vsh_rm "$1/$elem"
+
+	done
+
+	echo "jesuissorti"
+
+	#delete his own reference
+		#get the starting line of the description containing the dir
+	parentDir=$(sed -e "s/[^/]\+$//" <<< $1 | sed -e "s/\(^\/\|\/$\)//g")
+	parentDescLn=$(grep -n $(getLocalPath $parentDir)\$ "$archivePath" | cut -d: -f1)
+		#get the line of the ref in the desciption
+	echo "putepute:$1"
+	echo "putesalope:$(sed -e "s/.\+\///" <<< "$1")"
+	descLine=$(grep -n "$(sed -e "s/.\+\///" <<< "$1")" <<< "$(getDirContent $parentDir)" | cut -d: -f1)
+		#delete the line
+	sed -i "$(( $parentDescLn + $descLine ))d" "$archivePath"
+
+	#get the line of the directory description
+	lineStartDel=$(grep -n "^directory\ $(getLocalPath $1)$" "$archivePath" | cut -d: -f1)
+	#delete the directory lines description
+	sed -i "$lineStartDel,$(( $lineStartDel + 1 ))d" "$archivePath"
+
+	#refresh the header info
+	initHeaderInfo
+	#update the length of the header
+	sed -i "s/:[0-9]\+\$/:$(( $lineBodyStart - 3 ))/" "$archivePath"
+}
+
+function vsh_rm {
+
+	#clean the given file path
+	path="$(sed -e "s/\(^\/\|\/$\)//g" <<< $1)"
+
+	#if the given path is a directory
+	if (( $(vsh_existDir "$(getLocalPath "$path")") )); then
+		vsh_rmDir "$path"
+	else
+
+		#extract the filename for the path
+		pathArray=(${path//'/'/ })
+		fileName=${pathArray[$((( ${#pathArray[@]} - 1 )))]}
+
+		#extract and construct the directory path containing the file
+		fileDir="$(sed -e "s/\/\?$fileName\$//" <<< "$path")"
+
+		#check if the directory exist
+		if ! (( $(vsh_existDir "$(getLocalPath $fileDir)") )); then
+			echo "$dirNotFound"
+			return
+		fi
+
+		#get the description of the directory containing the file
+		dirContent="$(getDirContent "$fileDir")"
+
+		#check if the file exist in the directory
+		if (( $(grep -c "$fileName\ " <<< "$dirContent") == 0 )); then
+			echo "$fileNotFound"
+			return
+		fi
+
+		vsh_rmFile "$fileName" "$fileDir"
+	fi
+
+}
+
 function vsh_browse {
 	cmd="${cmdLineArray[2]}"
 
@@ -224,16 +280,16 @@ function vsh_browse {
 
 	case "$cmd" in
 		ls )
-			vsh_ls;
+			vsh_ls ${cmdLineArray[3]};
 			;;
 		cd )
-			vsh_cd;
+			vsh_cd ${cmdLineArray[3]};
 			;;
 		cat )
-			vsh_cat;
+			vsh_cat ${cmdLineArray[3]};
 			;;
 		rm )
-			vsh_rm;
+			vsh_rm ${cmdLineArray[3]};
 			;;
 		*)
 			;;
