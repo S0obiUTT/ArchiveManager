@@ -1,5 +1,5 @@
 #!/bin/bash
-#set -x
+set -x
 #########################################
 #										#
 #	@Author : Kevin Personnic			#
@@ -142,7 +142,8 @@ function vsh_cat {
 	initHeaderInfo
 
 	#send back the file
-	echo "$(tail -n +$lineBodyStart "$archivePath" | tail -n +$fileLineStart | head -$fileNbLines)"
+	#echo "$(tail -n +$lineBodyStart "$archivePath" | tail -n +$fileLineStart | head -$fileNbLines)"
+	sed -n $(( $lineBodyStart + fileLineStart - 1 )),$(( $lineBodyStart + fileLineStart + fileNbLines -2 ))p "$archivePath"
 
 }
 
