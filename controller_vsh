@@ -163,7 +163,7 @@ function vsh_rmFile {
 	initHeaderInfo
 
 	#delete file's content
-	sed -i "$(( $lineBodyStart + $fileLineStart - 1 )),$(( $lineBodyStart + $fileLineStart + $fileNbLines - 1 ))d" "$archivePath"
+	sed -i "$(( $lineBodyStart + $fileLineStart - 1 )),$(( $lineBodyStart + $fileLineStart + $fileNbLines - 2 ))d" "$archivePath"
 
 	#delete file's reference in the header
 	sed -i "/^.\+\ -[r,w,x,-]\+\ [0-9]\+\ $fileLineStart\ $fileNbLines/d" "$archivePath"
