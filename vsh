@@ -30,35 +30,52 @@ function isPathAbsolute {
 
 }
 
+# Get the path with ".." substitution
+# $1 - path
+function getPathSubstitution {
+	local argSplit=(${1//\// })
+	local i=0
+	local nbRm=0
+
+	for rep in "${argSplit[@]}" ;do
+		if [[ $rep == ".." ]] && (( i != 0)); then
+			unset argSplit[$((i-2*nbRm-1))]
+			unset argSplit[$i]
+			if (( i-2 >= 0 )) && [[ ${argSplit[i-2]} != "" ]];then
+				((nbRm++))
+			fi
+		elif [[ $rep == ".." ]] && (( i == 0)) || [[ $rep == "." ]]; then
+			unset argSplit[$i]
+			if (( i-2 >= 0 )) && [[ ${argSplit[i-2]} != "" ]];then
+				((nbRm++))
+			fi
+		fi
+		((i++))
+	done
+
+	local IFS="/"
+	echo "/${argSplit[*]}"
+
+}
+
 # Get full path of the argument
 # $1 - basic path
 # $2 - file/folder argument
 function getFullPathFile {
 	local path="$1"
 	local arg="$2"
-	
-	if [[ ${arg:0:2} == ".." ]]; then
-		if [[ $(dirname $path) != "/" ]]; then
-			echo "$(dirname $path)/${arg:3}"
-		
-		else
-			echo "/"
-		fi
-
-	elif [[ $arg == "." ]]; then
-		echo "$path"
 
 	# if the path is absolute
-	elif (( $(isPathAbsolute $arg) )); then
-		echo "$arg"
+	if (( $(isPathAbsolute $arg) )); then
+		getPathSubstitution "$arg"
 
 	# if the path is relative
 	else
 		# if last caracter is "/"
 		if [[ ${path: -1:1} == "/" ]]; then
-			echo "$path$arg"
+			getPathSubstitution "$path$arg"
 		else
-			echo "$path/$arg"
+			getPathSubstitution "$path/$arg"
 		fi
 
 	fi
@@ -68,7 +85,7 @@ function getFullPathFile {
 # $1 - command to send
 # $2 - argument of the command
 function sendBrowseCmd {
-	echo "$(nc "$server" "$port" <<< "browse $archiveName $1 $2" 2>&1)"
+	nc "$server" "$port" <<< "browse $archiveName $1 $2" 2>&1
 }
 
 # List all archives on the server
@@ -137,7 +154,7 @@ function browse {
 
 					resp="$(sendBrowseCmd ${cmd[0]} $pathToList)"
 
-					if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+					if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
 						echo "${cmd[1]} : not found"
 
 					else
@@ -152,7 +169,7 @@ function browse {
 
 						resp="$(sendBrowseCmd ${cmd[0]} $pathToList)"
 
-						if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+						if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
 							echo "${cmd[1]} : not found"
 
 						else
@@ -171,7 +188,7 @@ function browse {
 					resp="$(sendBrowseCmd ${cmd[0]} $pathToCat)"
 
 					# if the file is not in the archive
-					if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+					if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
 						echo "${cmd[1]} : not found"
 
 					else
@@ -186,7 +203,7 @@ function browse {
 						resp="$(sendBrowseCmd ${cmd[0]} $pathToCat)"
 
 						# if the file is not in the archive
-						if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+						if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
 							echo "${cmd[1]} : not found"
 
 						else
@@ -208,7 +225,7 @@ function browse {
 					resp="$(sendBrowseCmd ${cmd[0]} $pathToRm)"
 
 					# if the file is not in the archive
-					if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+					if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
 						echo "${cmd[1]} : not found"
 
 					else
@@ -223,7 +240,7 @@ function browse {
 						resp="$(sendBrowseCmd ${cmd[0]} $pathToRm)"
 
 						# if the file is not in the archive
-						if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
+						if [[ $resp == $dirNotFound || $resp == $fileNotFound ]]; then
 							echo "${cmd[1]} : not found"
 
 						else
@@ -259,7 +276,7 @@ function browse {
 
 # Extract a specific archive
 function extract {
-	resp="$(nc "$server" "$port" <<< "extract" "$archiveName")"
+	resp="$(nc "$server" "$port" <<< "extract $archiveName")"
 
 	if [[ $resp == $archNotFound ]]; then
 		echo "$archiveName : archive not found"
